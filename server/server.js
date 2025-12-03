@@ -1,3 +1,4 @@
+// server.js
 import './config/instrument.js';
 import express from 'express';
 import cors from 'cors';
@@ -8,33 +9,27 @@ import { clerkWebhooks } from './controller/webhooks.js';
 
 const app = express();
 
-// Connect DB
+// Connect DB once (safe to call on each cold start)
 await connectDB();
 
-
-// Middlewares
+// CORS
 app.use(cors());
 
-/* // ✅ RAW body only for Clerk webhooks (must come before express.json)
+// ⚠️ Clerk webhooks need RAW body and this must come BEFORE any JSON parser.
 app.post('/webhooks', express.raw({ type: 'application/json' }), clerkWebhooks);
- */
-// ✅ Standard JSON for all other routes
+
+// JSON parser for all other routes
 app.use(express.json());
 
 // Routes
 app.get('/', (req, res) => res.send('API Working'));
-
 app.get('/debug-sentry', (req, res) => {
   throw new Error('My first Sentry error!');
 });
 
-app.post('/webhooks', clerkWebhooks);
-
-// Port
-const PORT = process.env.PORT || 5000;
-
+// Sentry error handler (after routes)
 Sentry.setupExpressErrorHandler(app);
 
-app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
-});
+// ❌ Do NOT app.listen() on Vercel.
+// ✅ Export the app/handler instead.
+export default app;
