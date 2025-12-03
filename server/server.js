@@ -1,49 +1,40 @@
-// server.js
-import express from "express";
-import cors from "cors";
-import "dotenv/config";
-import connectDB from "./config/db.js";
-import * as Sentry from "@sentry/node";
-import User from "./models/User.js";
-import { clerkWebhooks } from "./controller/webhooks.js";
-
-// ---- SENTRY SETUP ----
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  integrations: [
-    Sentry.mongooseIntegration(),
-  ],
-  tracesSampleRate: 1.0,
-});
+import './config/instrument.js';
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config';
+import connectDB from './config/db.js';
+import * as Sentry from '@sentry/node';
+import { clerkWebhooks } from './controller/webhooks.js';
 
 const app = express();
 
+// Connect DB
+await connectDB();
+
+
+// Middlewares
 app.use(cors());
+
+/* // ✅ RAW body only for Clerk webhooks (must come before express.json)
+app.post('/webhooks', express.raw({ type: 'application/json' }), clerkWebhooks);
+ */
+// ✅ Standard JSON for all other routes
 app.use(express.json());
 
-// ---- ROUTES ----
+// Routes
+app.get('/', (req, res) => res.send('API Working'));
 
-// Test route
-app.get("/", async (req, res) => {
-  await connectDB();     // only connect inside routes
-  res.send("API Working on Vercel");
+app.get('/debug-sentry', (req, res) => {
+  throw new Error('My first Sentry error!');
 });
 
-// Sentry test
-app.get("/debug-sentry", (req, res) => {
-  throw new Error("Sentry test error!");
-});
+app.post('/webhooks', clerkWebhooks);
 
-// Clerk webhook
-app.post("/webhooks", async (req, res) => {
-  await connectDB();
-  clerkWebhooks(req, res);
-});
+// Port
+const PORT = process.env.PORT || 5000;
 
-// ---- ERROR HANDLER ----
 Sentry.setupExpressErrorHandler(app);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-export default app;
+app.listen(PORT, () => {
+  console.log(`✅ Server is running on port ${PORT}`);
+});
